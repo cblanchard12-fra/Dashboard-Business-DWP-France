@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Atos DWP — RFP Pipeline Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    #lockScreen {
+      position: fixed; inset: 0; z-index: 9999;
+      background: #030712;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .lock-box {
+      width: 380px;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 16px;
+      padding: 40px 36px;
+      text-align: center;
+    }
+    .lock-logo {
+      width: 52px; height: 52px; border-radius: 12px;
+      background: linear-gradient(135deg, #0ea5e9, #6366f1);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; margin: 0 auto 20px;
+    }
+    .lock-company {
+      font-size: 10px; color: #475569; text-transform: uppercase;
+      letter-spacing: 2px; font-weight: 700; margin-bottom: 6px;
+    }
+    .lock-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 20px; font-weight: 800; color: #f8fafc;
+      margin-bottom: 6px;
+    }
+    .lock-sub {
+      font-size: 12px; color: #64748b; margin-bottom: 28px;
+    }
+    .lock-label {
+      font-size: 11px; color: #94a3b8; text-align: left;
+      font-weight: 600; text-transform: uppercase; letter-spacing: 1px;
+      margin-bottom: 8px; display: block;
+    }
+    .lock-input {
+      width: 100%; padding: 11px 14px;
+      background: #1e293b; border: 1.5px solid #334155;
+      border-radius: 8px; color: #f8fafc; font-size: 14px;
+      font-family: 'DM Mono', monospace; letter-spacing: 2px;
+      outline: none; transition: border-color 0.2s;
+      margin-bottom: 16px;
+    }
+    .lock-input:focus { border-color: #0ea5e9; }
+    .lock-input.error { border-color: #f43f5e; animation: shake 0.3s; }
+    .lock-btn {
+      width: 100%; padding: 12px;
+      background: linear-gradient(135deg, #0ea5e9, #6366f1);
+      border: none; border-radius: 8px; color: #fff;
+      font-size: 13px; font-weight: 700; font-family: 'DM Sans', sans-serif;
+      cursor: pointer; transition: opacity 0.15s; letter-spacing: 0.5px;
+    }
+    .lock-btn:hover { opacity: 0.88; }
+    .lock-error {
+      font-size: 12px; color: #f43f5e; margin-top: 12px;
+      display: none; font-weight: 500;
+    }
+    .lock-attempts {
+      font-size: 11px; color: #475569; margin-top: 20px;
+    }
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      25%      { transform: translateX(-6px); }
+      75%      { transform: translateX(6px); }
+    }
+  </style>
+  <style>
+    :root {
+      --bg:       #030712;
+      --bg1:      #0f172a;
+      --bg2:      #1e293b;
+      --bg3:      #334155;
+      --text:     #f8fafc;
+      --muted:    #94a3b8;
+      --dim:      #475569;
+      --dimmer:   #1e293b;
+      --blue:     #0ea5e9;
+      --indigo:   #6366f1;
+      --emerald:  #10b981;
+      --amber:    #f59e0b;
+      --rose:     #f43f5e;
+      --violet:   #8b5cf6;
+      --cyan:     #06b6d4;
+      --purple:   #a855f7;
+      --sp-color: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    h1, h2, .mono { font-family: 'Syne', sans-serif; }
+    .mono-num { font-family: 'DM Mono', monospace; }
+
+    /* ── Header ── */
+    .header { margin-bottom: 22px; }
+    .header-row { display: flex; align-items: center; gap: 12px; }
+    .logo {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--blue), var(--indigo));
+      display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0;
+    }
+    .header-meta { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 2px; font-weight: 700; }
+    .header-title { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; font-family: 'Syne', sans-serif; }
+    .header-date {
+      margin-left: auto; background: var(--bg1); border-radius: 8px;
+      padding: 5px 12px; font-size: 11px; color: var(--dim); border: 1px solid var(--bg3);
+    }
+    .header-line {
+      height: 1px; margin-top: 10px;
+      background: linear-gradient(90deg, var(--sp-color, var(--blue)), var(--indigo), transparent);
+      transition: background 0.3s;
+    }
+
+    /* ── Filter bar ── */
+    .filter-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 14px; background: var(--bg1);
+      border-radius: 10px; border: 1px solid var(--bg2); margin-bottom: 18px;
+    }
+    .filter-label { font-size: 10px; color: var(--dim); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-right: 4px; }
+    .sp-btn {
+      display: flex; align-items: center; gap: 7px;
+      padding: 6px 14px; border-radius: 8px;
+      border: 1.5px solid var(--bg3); cursor: pointer;
+      background: transparent; color: var(--dim);
+      font-size: 12px; font-weight: 500; font-family: 'DM Sans', sans-serif;
+      transition: all 0.15s;
+    }
+    .sp-btn:hover { border-color: var(--muted); color: var(--muted); }
+    .sp-btn.active { font-weight: 700; }
+    .sp-avatar {
+      width: 20px; height: 20px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 8px; font-weight: 800; flex-shrink: 0;
+      background: var(--bg2); color: var(--dim);
+    }
+    .sp-btn.active .sp-avatar { color: #fff; }
+    .sp-count {
+      font-size: 10px; padding: 1px 5px; border-radius: 4px; font-weight: 600;
+    }
+    .reset-btn {
+      margin-left: auto; background: transparent;
+      border: 1px solid var(--bg3); color: var(--dim);
+      cursor: pointer; font-size: 11px; border-radius: 6px;
+      padding: 4px 10px; font-family: 'DM Sans', sans-serif;
+      display: none;
+    }
+    .reset-btn:hover { color: var(--muted); border-color: var(--muted); }
+
+    /* ── KPIs ── */
+    .kpi-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
+    .kpi-card {
+      background: linear-gradient(135deg, var(--bg2), var(--bg1));
+      border-radius: 12px; padding: 16px 18px;
+      position: relative; overflow: hidden;
+    }
+    .kpi-glow {
+      position: absolute; top: 0; right: 0; width: 70px; height: 70px;
+      border-radius: 50%; pointer-events: none;
+    }
+    .kpi-icon { font-size: 18px; margin-bottom: 5px; }
+    .kpi-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; color: var(--muted); }
+    .kpi-value { font-size: 22px; font-weight: 800; margin-top: 3px; font-family: 'DM Mono', monospace; color: var(--text); }
+    .kpi-sub { font-size: 11px; margin-top: 3px; font-weight: 500; }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex; gap: 4px; margin-bottom: 18px;
+      background: var(--bg1); border-radius: 10px;
+      padding: 4px; width: fit-content; border: 1px solid var(--bg2);
+    }
+    .tab-btn {
+      padding: 7px 16px; border-radius: 8px; border: none;
+      cursor: pointer; font-size: 12px; font-weight: 600;
+      background: transparent; color: var(--dim);
+      font-family: 'DM Sans', sans-serif; transition: all 0.15s;
+    }
+    .tab-btn.active { color: #fff; }
+    .tab-btn:not(.active):hover { color: var(--muted); }
+
+    /* ── Panels ── */
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* ── Grid layouts ── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .col-span-2 { grid-column: 1 / -1; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--bg1); border-radius: 12px;
+      padding: 18px; border: 1px solid var(--bg2);
+    }
+    .card-title {
+      font-size: 11px; color: var(--muted); font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px;
+    }
+
+    /* ── Charts ── */
+    .chart-wrap { position: relative; }
+
+    /* ── Phase cards ── */
+    .phase-grid { display: grid; gap: 10px; }
+    .phase-card {
+      background: var(--bg2); border-radius: 10px; padding: 12px; text-align: center;
+    }
+    .phase-val { font-size: 20px; font-weight: 800; font-family: 'DM Mono', monospace; }
+    .phase-name { font-size: 11px; color: var(--muted); font-weight: 600; margin: 3px 0 2px; }
+    .phase-sub { font-size: 10px; color: var(--dim); }
+
+    /* ── Specialist cards ── */
+    .sp-perf-card {
+      border-radius: 8px; padding: 8px; border: 1px solid transparent;
+      cursor: pointer; transition: all 0.2s; margin-bottom: 14px;
+    }
+    .sp-perf-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; }
+    .sp-perf-avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px; font-weight: 800;
+    }
+    .sp-perf-name { font-size: 13px; font-weight: 700; }
+    .sp-perf-meta { font-size: 10px; color: var(--dim); }
+    .sp-perf-tcv { font-size: 20px; font-weight: 800; font-family: 'DM Mono', monospace; }
+    .progress-bar-bg { background: var(--bg2); border-radius: 5px; height: 8px; }
+    .progress-bar { height: 100%; border-radius: 5px; transition: width 0.4s; }
+    .progress-sub { font-size: 10px; color: var(--dim); margin-top: 2px; }
+    .sp-click-hint { font-size: 10px; color: var(--dimmer); text-align: center; margin-top: 4px; }
+
+    /* ── Win/Loss mini cards ── */
+    .wl-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 10px; }
+    .wl-card { background: var(--bg2); border-radius: 8px; padding: 10px; }
+    .wl-val { font-size: 18px; font-weight: 800; font-family: 'DM Mono', monospace; }
+    .wl-label { font-size: 10px; color: var(--dim); }
+    .wl-tcv { font-size: 11px; font-weight: 600; color: var(--muted); }
+
+    /* ── Industry cards ── */
+    .ind-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+    .ind-card { background: var(--bg2); border-radius: 10px; padding: 12px; }
+    .ind-name { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+    .ind-row { display: flex; justify-content: space-between; }
+    .ind-tcv { font-size: 18px; font-weight: 800; font-family: 'DM Mono', monospace; }
+    .ind-lbl { font-size: 10px; color: var(--dim); }
+    .ind-count { font-size: 18px; font-weight: 800; font-family: 'DM Mono', monospace; color: var(--muted); text-align: right; }
+
+    /* ── Key bids ── */
+    .bids-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 12px; }
+    .bid-card {
+      background: linear-gradient(135deg, var(--bg2), #162032);
+      border-radius: 10px; padding: 14px; border: 1px solid var(--bg3);
+      position: relative; overflow: hidden;
+    }
+    .bid-stripe { position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+    .bid-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-top: 6px; }
+    .bid-account { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+    .bid-opp { font-size: 11px; color: var(--muted); line-height: 1.4; margin-bottom: 7px; }
+    .bid-tags { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+    .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+    .bid-tcv { font-size: 20px; font-weight: 900; font-family: 'DM Mono', monospace; text-align: right; flex-shrink: 0; }
+    .bid-tcv-lbl { font-size: 9px; color: var(--dim); }
+
+    /* ── Alerts ── */
+    .alerts-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+    .alert-card { background: var(--bg2); border-radius: 8px; padding: 12px; }
+    .alert-icon { font-size: 16px; margin-bottom: 4px; }
+    .alert-title { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+    .alert-desc { font-size: 11px; color: var(--muted); }
+
+    /* ── Active SP banner ── */
+    .sp-banner {
+      display: none; margin-top: 10px;
+      background: transparent; border-radius: 8px;
+      padding: 8px 14px; align-items: center; gap: 10px;
+      border: 1px solid transparent;
+    }
+    .sp-banner.visible { display: flex; }
+    .sp-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .sp-banner-name { font-size: 12px; font-weight: 700; }
+    .sp-banner-sub { font-size: 12px; color: var(--dim); }
+
+    /* ── Footer ── */
+    .footer { margin-top: 22px; text-align: center; font-size: 10px; color: var(--dimmer); }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .kpi-grid { grid-template-columns: repeat(2,1fr); }
+      .grid-2 { grid-template-columns: 1fr; }
+      .col-span-2 { grid-column: auto; }
+      .bids-grid { grid-template-columns: 1fr; }
+      .ind-grid { grid-template-columns: repeat(2,1fr); }
+    }
+    @media (max-width: 560px) {
+      body { padding: 12px; }
+      .kpi-grid { grid-template-columns: 1fr 1fr; }
+      .filter-bar { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ LOCK SCREEN ══ -->
+<div id="lockScreen">
+  <div class="lock-box">
+    <div class="lock-logo">⚡</div>
+    <div class="lock-company">Atos DWP · Sales Intelligence</div>
+    <div class="lock-title">RFP Pipeline Dashboard</div>
+    <div class="lock-sub">Accès restreint — équipe DWP France</div>
+    <label class="lock-label">🔒 Mot de passe</label>
+    <input class="lock-input" id="pwdInput" type="password"
+      placeholder="••••••••••••••"
+      onkeydown="if(event.key==='Enter') checkPwd()"/>
+    <button class="lock-btn" onclick="checkPwd()">Accéder au dashboard →</button>
+    <div class="lock-error" id="lockError">❌ Mot de passe incorrect. Réessayez.</div>
+    <div class="lock-attempts" id="lockAttempts"></div>
+  </div>
+</div>
+
+<script>
+  const CORRECT = "AtosDWPBusiness";
+  const SESSION_KEY = "dwp_auth";
+  let attempts = 0;
+
+  // Si déjà authentifié dans la session
+  if (sessionStorage.getItem(SESSION_KEY) === "ok") {
+    document.getElementById("lockScreen").style.display = "none";
+  }
+
+  function checkPwd() {
+    const val = document.getElementById("pwdInput").value;
+    if (val === CORRECT) {
+      sessionStorage.setItem(SESSION_KEY, "ok");
+      const ls = document.getElementById("lockScreen");
+      ls.style.transition = "opacity 0.4s";
+      ls.style.opacity = "0";
+      setTimeout(() => ls.style.display = "none", 400);
+    } else {
+      attempts++;
+      const input = document.getElementById("pwdInput");
+      input.classList.add("error");
+      input.value = "";
+      document.getElementById("lockError").style.display = "block";
+      document.getElementById("lockAttempts").textContent =
+        attempts > 1 ? `${attempts} tentatives échouées` : "";
+      setTimeout(() => input.classList.remove("error"), 400);
+      if (attempts >= 5) {
+        document.getElementById("lockError").textContent =
+          "⛔ Trop de tentatives. Contactez votre administrateur.";
+        document.getElementById("pwdInput").disabled = true;
+        document.querySelector(".lock-btn").disabled = true;
+      }
+    }
+  }
+</script>
+
+<!-- ══ HEADER ══ -->
+<div class="header">
+  <div class="header-row">
+    <div class="logo">⚡</div>
+    <div>
+      <div class="header-meta">ATOS DWP — SALES INTELLIGENCE</div>
+      <div class="header-title">RFP Pipeline Dashboard</div>
+    </div>
+    <div class="header-date">📅 FY2026 · Avril 2026</div>
+  </div>
+  <div class="sp-banner" id="spBanner">
+    <div class="sp-dot" id="spDot"></div>
+    <span class="sp-banner-name" id="spBannerName"></span>
+    <span class="sp-banner-sub" id="spBannerSub"></span>
+  </div>
+  <div class="header-line" id="headerLine"></div>
+</div>
+
+<!-- ══ FILTER BAR ══ -->
+<div class="filter-bar">
+  <span class="filter-label">🔽 Filtrer par :</span>
+  <button class="sp-btn active" data-sp="all" onclick="setSP('all')">
+    <span class="sp-avatar" id="av-all">ALL</span>
+    Tous
+  </button>
+  <button class="sp-btn" data-sp="jcd" onclick="setSP('jcd')">
+    <span class="sp-avatar" id="av-jcd">JCD</span>
+    Jean-Christophe David
+    <span class="sp-count" id="cnt-jcd" style="display:none">44 opps</span>
+  </button>
+  <button class="sp-btn" data-sp="jeanne" onclick="setSP('jeanne')">
+    <span class="sp-avatar" id="av-jeanne">JND</span>
+    Jeanne Ngaka Dika
+    <span class="sp-count" id="cnt-jeanne" style="display:none">30 opps</span>
+  </button>
+  <button class="reset-btn" id="resetBtn" onclick="setSP('all')">✕ Réinitialiser</button>
+</div>
+
+<!-- ══ KPIs ══ -->
+<div class="kpi-grid">
+  <div class="card kpi-card" id="kpi0">
+    <div class="kpi-glow" id="kpiGlow0"></div>
+    <div class="kpi-icon">💼</div>
+    <div class="kpi-label">Pipeline TCV</div>
+    <div class="kpi-value mono-num" id="kpiTcv">1,18Md€</div>
+    <div class="kpi-sub" id="kpiTcvSub">74 opportunités actives</div>
+  </div>
+  <div class="card kpi-card" id="kpi1" style="border-color:#6366f133">
+    <div class="kpi-glow" style="background:radial-gradient(circle at top right,#6366f122,transparent 70%)"></div>
+    <div class="kpi-icon">📋</div>
+    <div class="kpi-label">Order Entry</div>
+    <div class="kpi-value mono-num" id="kpiOe">534M€</div>
+    <div class="kpi-sub" style="color:var(--indigo)" id="kpiOeSub">45% du TCV pipeline</div>
+  </div>
+  <div class="card kpi-card" style="border-color:#f59e0b33">
+    <div class="kpi-glow" style="background:radial-gradient(circle at top right,#f59e0b22,transparent 70%)"></div>
+    <div class="kpi-icon">🔥</div>
+    <div class="kpi-label">Key Bids</div>
+    <div class="kpi-value mono-num" id="kpiKeyBids">8</div>
+    <div class="kpi-sub" style="color:var(--amber)" id="kpiKeyBidsSub">317M€ TCV cumulé</div>
+  </div>
+  <div class="card kpi-card" style="border-color:#10b98133">
+    <div class="kpi-glow" style="background:radial-gradient(circle at top right,#10b98122,transparent 70%)"></div>
+    <div class="kpi-icon">🏁</div>
+    <div class="kpi-label">RFP en cours</div>
+    <div class="kpi-value mono-num" id="kpiRfp">12</div>
+    <div class="kpi-sub" style="color:var(--emerald)" id="kpiRfpSub">66M€ TCV en jeu</div>
+  </div>
+</div>
+
+<!-- ══ TABS ══ -->
+<div class="tabs">
+  <button class="tab-btn active" onclick="setTab('pipeline')">📊 Pipeline</button>
+  <button class="tab-btn" onclick="setTab('performance')">🏆 Performance</button>
+  <button class="tab-btn" onclick="setTab('keybids')">🎯 Key Bids</button>
+</div>
+
+<!-- ══ PIPELINE PANEL ══ -->
+<div class="panel active" id="panel-pipeline">
+  <div class="grid-2">
+    <div class="card col-span-2">
+      <div class="card-title">📈 TCV par Statut DWP (M€)</div>
+      <div class="chart-wrap" style="height:190px"><canvas id="chartStatus"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">🏭 TCV par Industrie</div>
+      <div class="chart-wrap" style="height:210px"><canvas id="chartIndustry"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📅 Closing Date — TCV par Trimestre</div>
+      <div class="chart-wrap" style="height:210px"><canvas id="chartClosing"></canvas></div>
+    </div>
+    <div class="card col-span-2">
+      <div class="card-title">🔄 TCV par Phase de Vente</div>
+      <div class="phase-grid" id="phaseGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PERFORMANCE PANEL ══ -->
+<div class="panel" id="panel-performance">
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">👤 Comparaison Sales Specialists</div>
+      <div id="spPerfCards"></div>
+      <div class="sp-click-hint">Cliquer pour filtrer le dashboard</div>
+    </div>
+    <div class="card">
+      <div class="card-title">🏆 Won / Lost / Dropped — Q1 2026 (global)</div>
+      <div class="chart-wrap" style="height:170px"><canvas id="chartWinLoss"></canvas></div>
+      <div class="wl-grid" id="wlGrid"></div>
+    </div>
+    <div class="card col-span-2">
+      <div class="card-title" id="indTitle">📊 Industrie — Tous</div>
+      <div class="ind-grid" id="indGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ KEY BIDS PANEL ══ -->
+<div class="panel" id="panel-keybids">
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title" id="bidsTitle">🎯 8 Key Bids stratégiques · 317M€ TCV cumulé</div>
+    <div class="bids-grid" id="bidsGrid"></div>
+  </div>
+  <div class="card" style="border-color:#fbbf2422">
+    <div class="card-title" style="color:var(--amber)">⚠️ Alertes & Focus</div>
+    <div class="alerts-grid" id="alertsGrid"></div>
+  </div>
+</div>
+
+<div class="footer">Atos DWP · Sales Intelligence · Source : RFP_en_cours.xlsx</div>
+
+<script>
+// ══ DATA ══════════════════════════════════════════════════════════════════════
+const SP_CONFIG = {
+  all:    { label: "Tous",                  color: "#94a3b8", initials: "ALL" },
+  jcd:    { label: "Jean-Christophe David", color: "#0ea5e9", initials: "JCD" },
+  jeanne: { label: "Jeanne Ngaka Dika",     color: "#6366f1", initials: "JND" },
+};
+
+const DATA = {
+  all: {
+    tcv: 1181.3, oe: 534.3, count: 74,
+    statusLabels: ["0. Business Dev.","2. Attente RFP","1.3 RFI Décision","4. RFP en cours","5. RFP Décision","1. Attente RFI","1.2 RFI en cours"],
+    statusTcv:    [735.5, 180.1, 129.8, 66.1, 11.9, 30.0, 28.0],
+    statusColors: ["#64748b","#0ea5e9","#6366f1","#f59e0b","#8b5cf6","#06b6d4","#a855f7"],
+    industryLabels: ["Resources & Services","Public Sector & Defense","Manufacturing","Health & Life Sciences","Financial Services","Telecom, Media & Tech"],
+    industryTcv:    [374.3, 266.1, 274.8, 202.9, 44.4, 18.9],
+    industryCount:  [25, 19, 11, 6, 10, 3],
+    closingLabels: ["Q2 2026","Q3 2026","Q4 2026","Q1 2027","Q2 2027","Q4 2027","Q2 2028","Q3 2028"],
+    closingTcv:    [41.6, 74.8, 286.0, 134.5, 189.7, 224.0, 25.0, 12.0],
+    phases: [
+      { name:"Prospecting", tcv:383.0, count:30 },
+      { name:"Pursuit",     tcv:527.8, count:26 },
+      { name:"Strategy",    tcv:224.2, count:12 },
+      { name:"Offer",       tcv:29.8,  count:4  },
+      { name:"Solution",    tcv:16.5,  count:2  },
+    ],
+    rfpCount: 12, rfpTcv: 66.1,
+  },
+  jcd: {
+    tcv: 465.9, oe: 206.5, count: 44,
+    statusLabels: ["0. Business Dev.","1.3 RFI Décision","2. Attente RFP","4. RFP en cours","1. Attente RFI","5. RFP Décision"],
+    statusTcv:    [305.3, 73.5, 26.1, 27.7, 30.0, 3.4],
+    statusColors: ["#64748b","#6366f1","#0ea5e9","#f59e0b","#06b6d4","#8b5cf6"],
+    industryLabels: ["Resources & Services","Financial Services","Telecom, Media & Tech","Health & Life Sciences","Public Sector & Defense","Manufacturing"],
+    industryTcv:    [374.3, 44.4, 18.9, 18.0, 8.5, 1.8],
+    industryCount:  [25, 10, 3, 2, 3, 1],
+    closingLabels: ["Q2 2026","Q3 2026","Q4 2026","Q1 2027","Q2 2027","Q4 2027","Q2 2028","Q4 2028"],
+    closingTcv:    [24.7, 47.1, 110.9, 3.5, 35.7, 139.0, 5.0, 100.0],
+    phases: [
+      { name:"Prospecting", tcv:113.3, count:22 },
+      { name:"Pursuit",     tcv:318.8, count:17 },
+      { name:"Strategy",    tcv:12.0,  count:2  },
+      { name:"Offer",       tcv:21.8,  count:3  },
+    ],
+    rfpCount: 8, rfpTcv: 27.7,
+  },
+  jeanne: {
+    tcv: 715.5, oe: 327.8, count: 30,
+    statusLabels: ["0. Business Dev.","2. Attente RFP","4. RFP en cours","1.3 RFI Décision","1.2 RFI en cours","5. RFP Décision"],
+    statusTcv:    [430.3, 154.0, 38.4, 56.4, 28.0, 8.5],
+    statusColors: ["#64748b","#0ea5e9","#f59e0b","#6366f1","#a855f7","#8b5cf6"],
+    industryLabels: ["Public Sector & Defense","Manufacturing","Health & Life Sciences"],
+    industryTcv:    [257.6, 273.0, 184.9],
+    industryCount:  [16, 10, 4],
+    closingLabels: ["Q2 2026","Q3 2026","Q4 2026","Q1 2027","Q2 2027","Q4 2027","Q2 2028","Q3 2028"],
+    closingTcv:    [17.0, 27.7, 175.2, 131.0, 154.0, 85.0, 20.0, 12.0],
+    phases: [
+      { name:"Prospecting", tcv:269.7, count:8  },
+      { name:"Pursuit",     tcv:209.0, count:9  },
+      { name:"Strategy",    tcv:212.3, count:10 },
+      { name:"Offer",       tcv:8.0,   count:1  },
+      { name:"Solution",    tcv:16.5,  count:2  },
+    ],
+    rfpCount: 4, rfpTcv: 38.4,
+  },
+};
+
+const WIN_LOSS = [
+  { name:"Won",     count:42, tcv:10.95,  color:"#10b981" },
+  { name:"Lost",    count:7,  tcv:112.6,  color:"#f43f5e" },
+  { name:"Dropped", count:15, tcv:103.5,  color:"#f59e0b" },
+];
+
+const KEY_BIDS = [
+  { account:"EDF D.S.P",     opp:"DIGIT : DWP (Infogérance Bureautique)",    tcv:100,  status:"Business Dev.", industry:"Resources & Services",   sp:"jcd"    },
+  { account:"AIRBUS SAS",    opp:"DWP - HCL Contract replacement",           tcv:80,   status:"Business Dev.", industry:"Manufacturing",          sp:"jeanne" },
+  { account:"AIRBUS SAS",    opp:"Global Service Desk - Renewal",            tcv:93.7, status:"Business Dev.", industry:"Manufacturing",          sp:"jeanne" },
+  { account:"PIERRE FABRE",  opp:"End User Services & Infrastructure Mgmt", tcv:15,   status:"RFP en cours",  industry:"Health & Life Sciences", sp:"jcd"    },
+  { account:"SERVIER MONDE", opp:"Servier - Support Workplace",              tcv:15,   status:"Attente RFP",   industry:"Health & Life Sciences", sp:"jeanne" },
+  { account:"OBS SA",        opp:"DWP Outsourcing - Additional scope",       tcv:12,   status:"Business Dev.", industry:"Telecom, Media & Tech",   sp:"jcd"    },
+  { account:"SEPHORA SAS",   opp:"Global OSS Sephora",                       tcv:0.5,  status:"RFI Décision",  industry:"Resources & Services",   sp:"jcd"    },
+  { account:"PWC",           opp:"HD Multi-langue",                          tcv:1.2,  status:"Business Dev.", industry:"Telecom, Media & Tech",   sp:"jcd"    },
+];
+
+const STATUS_BADGE_COLOR = {
+  "RFP en cours":  "#d97706",
+  "Business Dev.": "#94a3b8",
+  "Attente RFP":   "#60a5fa",
+  "RFI Décision":  "#a78bfa",
+};
+
+const IND_COLORS = ["#0ea5e9","#6366f1","#10b981","#f59e0b","#f43f5e","#8b5cf6"];
+const PHASE_COLORS = ["#6366f1","#0ea5e9","#f59e0b","#10b981","#f43f5e"];
+
+// ══ STATE ═════════════════════════════════════════════════════════════════════
+let activeSP = "all";
+let activeTab = "pipeline";
+let charts = {};
+
+// ══ CHART HELPERS ═════════════════════════════════════════════════════════════
+const gridColor = "#1e293b";
+const tickColor = "#64748b";
+
+function baseOptions(type) {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: {
+      backgroundColor: "#1e293b", borderColor: "#334155", borderWidth: 1,
+      titleColor: "#94a3b8", bodyColor: "#f8fafc", titleFont: { family: "'DM Sans'" },
+      bodyFont: { family: "'DM Mono'", weight: "bold" },
+      callbacks: { label: ctx => ` ${ctx.parsed.y !== undefined ? ctx.parsed.y.toFixed(0) : ctx.parsed}M€` }
+    }},
+    scales: type === "bar" || type === "area" ? {
+      x: { grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 10 } }, border: { display: false } },
+      y: { grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 10 }, callback: v => v + "M" }, border: { display: false } },
+    } : {},
+  };
+}
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+function makeBar(id, labels, data, colors) {
+  destroyChart(id);
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  charts[id] = new Chart(ctx, {
+    type: "bar",
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderRadius: 4, borderSkipped: false }] },
+    options: baseOptions("bar"),
+  });
+}
+
+function makeDoughnut(id, labels, data, colors) {
+  destroyChart(id);
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  charts[id] = new Chart(ctx, {
+    type: "doughnut",
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: "#0f172a", hoverOffset: 6 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: "58%",
+      plugins: {
+        legend: { position: "right", labels: { color: "#94a3b8", font: { size: 10, family: "'DM Sans'" }, boxWidth: 12, padding: 8 } },
+        tooltip: { backgroundColor: "#1e293b", borderColor: "#334155", borderWidth: 1, titleColor: "#94a3b8", bodyColor: "#f8fafc",
+          callbacks: { label: ctx => ` ${ctx.parsed.toFixed(0)}M€` } },
+      },
+    },
+  });
+}
+
+function makeArea(id, labels, data, color) {
+  destroyChart(id);
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  charts[id] = new Chart(ctx, {
+    type: "line",
+    data: { labels, datasets: [{
+      data, borderColor: color, borderWidth: 2,
+      backgroundColor: color + "33", fill: true,
+      tension: 0.35, pointBackgroundColor: color, pointRadius: 4, pointHoverRadius: 6,
+    }]},
+    options: baseOptions("area"),
+  });
+}
+
+function makePie(id, labels, data, colors) {
+  destroyChart(id);
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  charts[id] = new Chart(ctx, {
+    type: "doughnut",
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: "#0f172a", hoverOffset: 5 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: "40%",
+      plugins: {
+        legend: { position: "bottom", labels: { color: "#94a3b8", font: { size: 11, family: "'DM Sans'" }, boxWidth: 12, padding: 10 } },
+        tooltip: { backgroundColor: "#1e293b", borderColor: "#334155", borderWidth: 1, titleColor: "#94a3b8", bodyColor: "#f8fafc",
+          callbacks: { label: ctx => ` ${ctx.parsed} deals` } },
+      },
+    },
+  });
+}
+
+// ══ RENDER ════════════════════════════════════════════════════════════════════
+function render() {
+  const d = DATA[activeSP];
+  const cfg = SP_CONFIG[activeSP];
+  const spColor = cfg.color;
+
+  // header line color
+  document.getElementById("headerLine").style.background =
+    `linear-gradient(90deg, ${spColor}, #6366f1, transparent)`;
+
+  // sp banner
+  const banner = document.getElementById("spBanner");
+  if (activeSP !== "all") {
+    banner.classList.add("visible");
+    banner.style.background = spColor + "12";
+    banner.style.borderColor = spColor + "33";
+    document.getElementById("spDot").style.background = spColor;
+    document.getElementById("spBannerName").textContent = cfg.label;
+    document.getElementById("spBannerName").style.color = spColor;
+    document.getElementById("spBannerSub").textContent =
+      `— ${d.count} opportunités · ${d.tcv.toFixed(0)}M€ TCV`;
+  } else {
+    banner.classList.remove("visible");
+  }
+
+  // filter buttons
+  document.querySelectorAll(".sp-btn").forEach(btn => {
+    const sp = btn.dataset.sp;
+    const c = SP_CONFIG[sp].color;
+    const isActive = sp === activeSP;
+    btn.classList.toggle("active", isActive);
+    btn.style.borderColor = isActive ? c : "";
+    btn.style.background  = isActive ? c + "18" : "";
+    btn.style.color       = isActive ? c : "";
+    const av = document.getElementById("av-" + sp);
+    if (av) { av.style.background = isActive ? c : ""; av.style.color = isActive ? "#fff" : ""; }
+    const cnt = document.getElementById("cnt-" + sp);
+    if (cnt) {
+      cnt.style.display = isActive && sp !== "all" ? "" : "none";
+      cnt.style.background = c + "33"; cnt.style.color = c;
+    }
+  });
+  document.getElementById("resetBtn").style.display = activeSP !== "all" ? "" : "none";
+
+  // KPIs
+  const tcvStr = d.tcv >= 1000 ? `${(d.tcv/1000).toFixed(2)}Md€` : `${d.tcv.toFixed(0)}M€`;
+  document.getElementById("kpiTcv").textContent = tcvStr;
+  document.getElementById("kpiTcvSub").textContent = `${d.count} opportunités actives`;
+  document.getElementById("kpiTcvSub").style.color = spColor;
+  document.getElementById("kpi0").style.borderColor = spColor + "33";
+  document.getElementById("kpiGlow0").style.background = `radial-gradient(circle at top right,${spColor}22,transparent 70%)`;
+
+  document.getElementById("kpiOe").textContent = `${d.oe.toFixed(0)}M€`;
+  document.getElementById("kpiOeSub").textContent = `${((d.oe/d.tcv)*100).toFixed(0)}% du TCV pipeline`;
+
+  const filtBids = activeSP === "all" ? KEY_BIDS : KEY_BIDS.filter(k => k.sp === activeSP);
+  const bidsTcv  = filtBids.reduce((s,k) => s+k.tcv, 0);
+  document.getElementById("kpiKeyBids").textContent = filtBids.length;
+  document.getElementById("kpiKeyBidsSub").textContent = `${bidsTcv.toFixed(0)}M€ TCV cumulé`;
+
+  document.getElementById("kpiRfp").textContent = d.rfpCount;
+  document.getElementById("kpiRfpSub").textContent = `${d.rfpTcv.toFixed(0)}M€ TCV en jeu`;
+
+  // tab active button style
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    if (btn.classList.contains("active")) {
+      btn.style.background = `linear-gradient(135deg,${spColor},#6366f1)`;
+    }
+  });
+
+  // ── Pipeline charts ──
+  if (activeTab === "pipeline") {
+    makeBar("chartStatus", d.statusLabels, d.statusTcv, d.statusColors);
+    makeDoughnut("chartIndustry", d.industryLabels, d.industryTcv,
+      IND_COLORS.slice(0, d.industryLabels.length));
+    makeArea("chartClosing", d.closingLabels, d.closingTcv, spColor);
+    renderPhases(d, spColor);
+  }
+
+  // ── Performance charts ──
+  if (activeTab === "performance") {
+    renderSpPerf(spColor);
+    makePie("chartWinLoss",
+      WIN_LOSS.map(w=>w.name), WIN_LOSS.map(w=>w.count), WIN_LOSS.map(w=>w.color));
+    renderWlCards();
+    renderIndustry(d, spColor);
+  }
+
+  // ── Key bids ──
+  if (activeTab === "keybids") {
+    renderBids(filtBids, bidsTcv, spColor);
+    renderAlerts(d, spColor);
+  }
+}
+
+function renderPhases(d, spColor) {
+  const grid = document.getElementById("phaseGrid");
+  grid.style.gridTemplateColumns = `repeat(${d.phases.length},1fr)`;
+  grid.innerHTML = d.phases.map((p,i) => {
+    const pct = (p.tcv / d.tcv * 100).toFixed(0);
+    return `<div class="phase-card" style="border-top:3px solid ${PHASE_COLORS[i]}">
+      <div class="phase-val" style="color:${PHASE_COLORS[i]}">${p.tcv.toFixed(0)}M€</div>
+      <div class="phase-name">${p.name}</div>
+      <div class="phase-sub">${p.count} opps · ${pct}%</div>
+    </div>`;
+  }).join("");
+}
+
+function renderSpPerf(spColor) {
+  const specs = [
+    { key:"jcd",    name:"Jean-Christophe David", tcv:465.9, oe:206.5, count:44, color:"#0ea5e9" },
+    { key:"jeanne", name:"Jeanne Ngaka Dika",     tcv:715.5, oe:327.8, count:30, color:"#6366f1" },
+  ];
+  const total = 465.9 + 715.5;
+  document.getElementById("spPerfCards").innerHTML = specs.map(s => {
+    const pct = (s.tcv / total * 100).toFixed(0);
+    const isAct = activeSP === s.key;
+    const dimmed = activeSP !== "all" && !isAct;
+    return `<div class="sp-perf-card" onclick="setSP('${activeSP === s.key ? "all" : s.key}')"
+      style="opacity:${dimmed?0.35:1};background:${isAct?s.color+"08":"transparent"};border-color:${isAct?s.color+"33":"transparent"}">
+      <div class="sp-perf-row">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="sp-perf-avatar" style="background:${isAct?s.color:"#1e293b"};color:${isAct?"#fff":"#475569"}">
+            ${s.key==="jcd"?"JCD":"JND"}
+          </div>
+          <div>
+            <div class="sp-perf-name" style="color:${isAct?s.color:"#f8fafc"}">${s.name}</div>
+            <div class="sp-perf-meta">${s.count} opps · OE ${s.oe.toFixed(0)}M€</div>
+          </div>
+        </div>
+        <div class="sp-perf-tcv" style="color:${s.color}">${s.tcv.toFixed(0)}M€</div>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar" style="width:${pct}%;background:linear-gradient(90deg,${s.color},${s.color}66)"></div>
+      </div>
+      <div class="progress-sub">${pct}% du pipeline total</div>
+    </div>`;
+  }).join("");
+}
+
+function renderWlCards() {
+  document.getElementById("wlGrid").innerHTML = WIN_LOSS.map(w =>
+    `<div class="wl-card" style="border-left:3px solid ${w.color}">
+      <div class="wl-val" style="color:${w.color}">${w.count}</div>
+      <div class="wl-label">${w.name}</div>
+      <div class="wl-tcv">${w.tcv.toFixed(0)}M€</div>
+    </div>`
+  ).join("");
+}
+
+function renderIndustry(d, spColor) {
+  document.getElementById("indTitle").textContent = `📊 Industrie — ${SP_CONFIG[activeSP].label}`;
+  document.getElementById("indGrid").innerHTML = d.industryLabels.map((name,i) =>
+    `<div class="ind-card" style="border-top:3px solid ${IND_COLORS[i%IND_COLORS.length]}">
+      <div class="ind-name">${name}</div>
+      <div class="ind-row">
+        <div>
+          <div class="ind-tcv" style="color:${IND_COLORS[i%IND_COLORS.length]}">${d.industryTcv[i].toFixed(0)}M€</div>
+          <div class="ind-lbl">TCV</div>
+        </div>
+        <div>
+          <div class="ind-count">${d.industryCount[i]}</div>
+          <div class="ind-lbl" style="text-align:right">opps</div>
+        </div>
+      </div>
+    </div>`
+  ).join("");
+}
+
+function renderBids(bids, bidsTcv, spColor) {
+  document.getElementById("bidsTitle").innerHTML =
+    `🎯 ${bids.length} Key Bids stratégiques · ${bidsTcv.toFixed(0)}M€ TCV cumulé` +
+    (activeSP !== "all" ? ` <span style="color:${spColor}">— ${SP_CONFIG[activeSP].label}</span>` : "");
+
+  if (!bids.length) {
+    document.getElementById("bidsGrid").innerHTML =
+      `<div style="text-align:center;padding:28px;color:#334155;grid-column:1/-1">Aucun Key Bid pour ce filtre.</div>`;
+    return;
+  }
+  document.getElementById("bidsGrid").innerHTML = bids.map(k => {
+    const bColor = STATUS_BADGE_COLOR[k.status] || "#64748b";
+    const kSpCfg = SP_CONFIG[k.sp];
+    const stripe = k.tcv > 50
+      ? "linear-gradient(90deg,#f43f5e,#f59e0b)"
+      : "linear-gradient(90deg,#0ea5e9,#6366f1)";
+    const tcvColor = k.tcv > 50 ? "#f43f5e" : "#0ea5e9";
+    const tcvStr = k.tcv >= 1 ? `${k.tcv}M€` : `${(k.tcv*1000).toFixed(0)}K€`;
+    const spTag = activeSP === "all"
+      ? `<span class="tag" style="color:${kSpCfg.color};background:${kSpCfg.color}18">${kSpCfg.initials}</span>`
+      : "";
+    return `<div class="bid-card">
+      <div class="bid-stripe" style="background:${stripe}"></div>
+      <div class="bid-row">
+        <div style="flex:1">
+          <div class="bid-account">${k.account}</div>
+          <div class="bid-opp">${k.opp}</div>
+          <div class="bid-tags">
+            <span class="tag" style="color:${bColor};border:1px solid ${bColor}44;background:${bColor}11">${k.status}</span>
+            <span class="tag" style="color:#64748b;border:1px solid #334155">${k.industry}</span>
+            ${spTag}
+          </div>
+        </div>
+        <div>
+          <div class="bid-tcv" style="color:${tcvColor}">${tcvStr}</div>
+          <div class="bid-tcv-lbl">TCV</div>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function renderAlerts(d, spColor) {
+  const closingQ2 = activeSP==="all" ? "41,6" : activeSP==="jcd" ? "24,7" : "17,0";
+  const rfpCt = d.rfpCount;
+  const rfpTcv = d.rfpTcv.toFixed(0);
+  const q4Tcv = d.closingTcv[d.closingLabels.indexOf("Q4 2026")];
+  const q4Str = q4Tcv ? q4Tcv.toFixed(0) : "—";
+  const alerts = [
+    { icon:"🚨", title:"Closing Q2 2026 imminent",  desc:`${closingQ2}M€ à closer avant fin juin`,    color:"#f43f5e" },
+    { icon:"🎯", title:"RFP en cours actifs",         desc:`${rfpCt} appels d'offres · ${rfpTcv}M€ TCV`, color:"#f59e0b" },
+    { icon:"💡", title:"Pic closing Q4 2026",          desc:`${q4Str}M€ TCV attendu sur Q4 2026`,        color: spColor  },
+  ];
+  document.getElementById("alertsGrid").innerHTML = alerts.map(a =>
+    `<div class="alert-card" style="border-left:3px solid ${a.color}">
+      <div class="alert-icon">${a.icon}</div>
+      <div class="alert-title">${a.title}</div>
+      <div class="alert-desc">${a.desc}</div>
+    </div>`
+  ).join("");
+}
+
+// ══ INTERACTIONS ══════════════════════════════════════════════════════════════
+function setSP(sp) {
+  activeSP = sp;
+  render();
+}
+
+function setTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+  document.getElementById("panel-" + tab).classList.add("active");
+  document.querySelectorAll(".tab-btn").forEach((btn, i) => {
+    const tabs = ["pipeline","performance","keybids"];
+    const isAct = tabs[i] === tab;
+    btn.classList.toggle("active", isAct);
+    btn.style.background = isAct
+      ? `linear-gradient(135deg,${SP_CONFIG[activeSP].color},#6366f1)`
+      : "transparent";
+    btn.style.color = isAct ? "#fff" : "";
+  });
+  render();
+}
+
+// ══ INIT ══════════════════════════════════════════════════════════════════════
+render();
+</script>
+</body>
+</html>
